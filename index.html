@@ -44,7 +44,7 @@
   </style>
 </head>
 <body>
-  <h2>😊 Smile Detection Demo v5</h2>
+  <h2>😊 Smile Detection Demo</h2>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
   <div id="status">Loading...</div>
@@ -57,10 +57,22 @@
     const statusText = document.getElementById('status');
     const debugText = document.getElementById('debug');
 
-    const MOUTH_WIDTH_THRESHOLD = 0.075;
-    const CORNER_LIFT_THRESHOLD = -0.005; // negative: corners above top lip
     const FRAME_WINDOW = 5;
     let smileBuffer = [];
+
+    const WEIGHTS = {
+      width: 0.6,
+      height: 0.2,
+      curve: 0.2
+    };
+
+    const NORMALIZATION = {
+      width: 0.09,     // expected max width when smiling
+      height: 0.04,    // expected max height when smiling
+      curveLift: -0.01 // expected max negative when corners lift
+    };
+
+    const SMILE_SCORE_THRESHOLD = 0.5;
 
     async function startCamera() {
       try {
@@ -94,17 +106,24 @@
       const left = landmarks[61];
       const right = landmarks[291];
       const top = landmarks[13];
+      const bottom = landmarks[14];
       const cornerLeft = landmarks[78];
       const cornerRight = landmarks[308];
 
       const mouthWidth = Math.hypot(right.x - left.x, right.y - left.y);
-      const cornerAvg = (cornerLeft.y + cornerRight.y) / 2;
-      const curveLift = cornerAvg - top.y; // Should be negative when smiling
+      const mouthHeight = Math.hypot(bottom.x - top.x, bottom.y - top.y);
+      const curveLift = ((cornerLeft.y + cornerRight.y) / 2) - top.y; // negative = smiling
 
-      const isSmilingNow = (
-        mouthWidth > MOUTH_WIDTH_THRESHOLD &&
-        curveLift < CORNER_LIFT_THRESHOLD
-      );
+      const widthScore = Math.min(mouthWidth / NORMALIZATION.width, 1.0);
+      const heightScore = Math.min(mouthHeight / NORMALIZATION.height, 1.0);
+      const curveScore = Math.min((-curveLift) / (-NORMALIZATION.curveLift), 1.0);
+
+      const smileScore =
+        WEIGHTS.width * widthScore +
+        WEIGHTS.height * heightScore +
+        WEIGHTS.curve * curveScore;
+
+      const isSmilingNow = smileScore >= SMILE_SCORE_THRESHOLD;
 
       smileBuffer.push(isSmilingNow);
       if (smileBuffer.length > FRAME_WINDOW) smileBuffer.shift();
@@ -114,9 +133,13 @@
       statusText.innerText = isSmiling ? "😊 You're smiling!" : "😐 Not smiling";
 
       debugText.innerText = `
-Mouth Width: ${mouthWidth.toFixed(3)}
-Corner Avg vs Top: ${curveLift.toFixed(5)} (should be < ${CORNER_LIFT_THRESHOLD})
-Smile Detected: ${isSmilingNow ? 'Yes' : 'No'}
+Smile Score: ${smileScore.toFixed(3)} (threshold: ${SMILE_SCORE_THRESHOLD})
+Width Score: ${widthScore.toFixed(3)}
+Height Score: ${heightScore.toFixed(3)}
+Curve Score: ${curveScore.toFixed(3)}
+Raw Width: ${mouthWidth.toFixed(3)}
+Raw Height: ${mouthHeight.toFixed(3)}
+Curve Lift: ${curveLift.toFixed(5)} (should be negative)
 Buffer: ${smileBuffer.join(', ')}
       `;
 
