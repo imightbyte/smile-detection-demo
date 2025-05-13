@@ -44,7 +44,7 @@
   </style>
 </head>
 <body>
-  <h2>😊 Smile Detection Demo v3</h2>
+  <h2>😊 Smile Detection Demo v4</h2>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
   <div id="status">Loading...</div>
@@ -57,8 +57,8 @@
     const statusText = document.getElementById('status');
     const debugText = document.getElementById('debug');
 
-    const MOUTH_WIDTH_THRESHOLD = 0.08;
-    const MOUTH_CURVE_THRESHOLD = 0.008;
+    const MOUTH_WIDTH_THRESHOLD = 0.05;
+    const MOUTH_CURVE_THRESHOLD = 0.005;
     const FRAME_WINDOW = 5;
     let smileBuffer = [];
 
