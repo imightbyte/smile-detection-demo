@@ -1,3 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smile Detection Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <style>
+    video, canvas {
+      width: 100%;
+      max-width: 480px;
+      height: auto;
+      border: 1px solid #ccc;
+      margin: 10px auto;
+      display: block;
+    }
+    #status {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">Smile Detection Demo</h2>
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="canvas"></canvas>
+  <div id="status">Loading...</div>
+
+  <script>
+    const videoElement = document.getElementById('video');
+    const canvasElement = document.getElementById('canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const statusText = document.getElementById('status');
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoElement.srcObject = stream;
+      } catch (err) {
+        statusText.innerText = 'Camera access denied or not supported.';
+        console.error(err);
+      }
+    }
+
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    faceMesh.onResults((results) => {
+      if (!results.multiFaceLandmarks.length) {
+        statusText.innerText = 'Face not detected';
+        return;
+      }
+
+
 const SMILE_RATIO_THRESHOLD = 1.7;
 const MOUTH_CURVE_THRESHOLD = 0.015;
 const FRAME_WINDOW = 5;
@@ -40,3 +104,20 @@ faceMesh.onResults((results) => {
 
   canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await faceMesh.send({ image: videoElement });
+      },
+      width: 640,
+      height: 480,
+    });
+
+    startCamera().then(() => {
+      camera.start();
+      statusText.innerText = 'Looking for a smile...';
+    });
+  </script>
+</body>
+</html>
+
