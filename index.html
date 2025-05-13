@@ -44,120 +44,122 @@
   </style>
 </head>
 <body>
-  <h2>😊 Smile Detection Demo v7</h2>
+  <h2>😊 Smile Detection Demo v8</h2>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
   <div id="status">Loading...</div>
   <div id="debug"></div>
 
-  <script>
-    const videoElement = document.getElementById('video');
-    const canvasElement = document.getElementById('canvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    const statusText = document.getElementById('status');
-    const debugText = document.getElementById('debug');
+<!-- SAME HTML AND STYLING as before — scroll down for updated script -->
+<script>
+  const videoElement = document.getElementById('video');
+  const canvasElement = document.getElementById('canvas');
+  const canvasCtx = canvasElement.getContext('2d');
+  const statusText = document.getElementById('status');
+  const debugText = document.getElementById('debug');
 
-    const FRAME_WINDOW = 5;
-    let smileBuffer = [];
+  const FRAME_WINDOW = 5;
+  let smileBuffer = [];
 
-    const WEIGHTS = {
-      width: 0.7,   // More emphasis
-      height: 0.1,  // Less emphasis
-      curve: 0.2
-    };
+  const WEIGHTS = {
+    width: 0.7,
+    height: 0.15,
+    curve: 0.15
+  };
 
-    const NORMALIZATION = {
-      width: 0.12,     // Now requires wider mouth for full score
-      height: 0.035,
-      curveLift: -0.01
-    };
+  const NORMALIZATION = {
+    width: 0.16,      // increased required width to be considered a smile
+    height: 0.04,
+    curveLift: -0.01
+  };
 
-    const SMILE_SCORE_THRESHOLD = 0.6; // Raised from 0.5 to reduce false positives
+  const SMILE_SCORE_THRESHOLD = 0.65;
 
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        videoElement.srcObject = stream;
-      } catch (err) {
-        statusText.innerText = 'Camera access denied or not supported.';
-        console.error(err);
-      }
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoElement.srcObject = stream;
+    } catch (err) {
+      statusText.innerText = 'Camera access denied or not supported.';
+      console.error(err);
+    }
+  }
+
+  const faceMesh = new FaceMesh({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+  });
+
+  faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  faceMesh.onResults((results) => {
+    if (!results.multiFaceLandmarks.length) {
+      statusText.innerText = 'Face not detected';
+      return;
     }
 
-    const faceMesh = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-    });
+    const landmarks = results.multiFaceLandmarks[0];
 
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
+    const left = landmarks[61];
+    const right = landmarks[291];
+    const top = landmarks[13];
+    const bottom = landmarks[14];
+    const cornerLeft = landmarks[78];
+    const cornerRight = landmarks[308];
 
-    faceMesh.onResults((results) => {
-      if (!results.multiFaceLandmarks.length) {
-        statusText.innerText = 'Face not detected';
-        return;
-      }
+    const mouthWidth = Math.hypot(right.x - left.x, right.y - left.y);
+    const mouthHeight = Math.hypot(bottom.x - top.x, bottom.y - top.y);
+    const curveLift = ((cornerLeft.y + cornerRight.y) / 2) - top.y;
 
-      const landmarks = results.multiFaceLandmarks[0];
+    const widthScore = Math.min(mouthWidth / NORMALIZATION.width, 1.0);
+    const heightScore = Math.min(mouthHeight / NORMALIZATION.height, 1.0);
+    const curveScore = Math.min((-curveLift) / (-NORMALIZATION.curveLift), 1.0);
 
-      const left = landmarks[61];
-      const right = landmarks[291];
-      const top = landmarks[13];
-      const bottom = landmarks[14];
-      const cornerLeft = landmarks[78];
-      const cornerRight = landmarks[308];
+    const smileScore =
+      WEIGHTS.width * widthScore +
+      WEIGHTS.height * heightScore +
+      WEIGHTS.curve * curveScore;
 
-      const mouthWidth = Math.hypot(right.x - left.x, right.y - left.y);
-      const mouthHeight = Math.hypot(bottom.x - top.x, bottom.y - top.y);
-      const curveLift = ((cornerLeft.y + cornerRight.y) / 2) - top.y;
+    const isSmilingNow = smileScore >= SMILE_SCORE_THRESHOLD;
 
-      const widthScore = Math.min(mouthWidth / NORMALIZATION.width, 1.0);
-      const heightScore = Math.min(mouthHeight / NORMALIZATION.height, 1.0);
-      const curveScore = Math.min((-curveLift) / (-NORMALIZATION.curveLift), 1.0);
+    smileBuffer.push(isSmilingNow);
+    if (smileBuffer.length > FRAME_WINDOW) smileBuffer.shift();
+    const smileCount = smileBuffer.filter(Boolean).length;
+    const isSmiling = smileCount > FRAME_WINDOW / 2;
 
-      const smileScore =
-        WEIGHTS.width * widthScore +
-        WEIGHTS.height * heightScore +
-        WEIGHTS.curve * curveScore;
+    statusText.innerText = isSmiling ? "😊 You're smiling!" : "😐 Not smiling";
 
-      const isSmilingNow = smileScore >= SMILE_SCORE_THRESHOLD;
+    debugText.innerText = `
+Smile Score: ${smileScore.toFixed(3)} / threshold ${SMILE_SCORE_THRESHOLD}
+Width: ${mouthWidth.toFixed(3)} → Score: ${widthScore.toFixed(3)}
+Height: ${mouthHeight.toFixed(3)} → Score: ${heightScore.toFixed(3)}
+Curve Lift: ${curveLift.toFixed(4)} → Score: ${curveScore.toFixed(3)}
+Frame buffer: [${smileBuffer.join(', ')}]
+    `;
 
-      smileBuffer.push(isSmilingNow);
-      if (smileBuffer.length > FRAME_WINDOW) smileBuffer.shift();
-      const smileCount = smileBuffer.filter(Boolean).length;
-      const isSmiling = smileCount > FRAME_WINDOW / 2;
+    canvasElement.width = results.image.width;
+    canvasElement.height = results.image.height;
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+  });
 
-      statusText.innerText = isSmiling ? "😊 You're smiling!" : "😐 Not smiling";
+  const camera = new Camera(videoElement, {
+    onFrame: async () => {
+      await faceMesh.send({ image: videoElement });
+    },
+    width: 640,
+    height: 480,
+  });
 
-      debugText.innerText = `
-Smile Score: ${smileScore.toFixed(3)} (needs ≥ ${SMILE_SCORE_THRESHOLD})
-Width Score: ${widthScore.toFixed(3)} (raw: ${mouthWidth.toFixed(3)})
-Height Score: ${heightScore.toFixed(3)} (raw: ${mouthHeight.toFixed(3)})
-Curve Score: ${curveScore.toFixed(3)} (lift: ${curveLift.toFixed(5)})
-Detection Buffer: ${smileBuffer.join(', ')}
-      `;
+  startCamera().then(() => {
+    camera.start();
+    statusText.innerText = 'Looking for a smile...';
+  });
+</script>
 
-      canvasElement.width = results.image.width;
-      canvasElement.height = results.image.height;
-      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-    });
-
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        await faceMesh.send({ image: videoElement });
-      },
-      width: 640,
-      height: 480,
-    });
-
-    startCamera().then(() => {
-      camera.start();
-      statusText.innerText = 'Looking for a smile...';
-    });
-  </script>
 </body>
 </html>
