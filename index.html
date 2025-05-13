@@ -44,7 +44,7 @@
   </style>
 </head>
 <body>
-  <h2>😊 Smile Detection Demo v4</h2>
+  <h2>😊 Smile Detection Demo v5</h2>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
   <div id="status">Loading...</div>
@@ -57,8 +57,8 @@
     const statusText = document.getElementById('status');
     const debugText = document.getElementById('debug');
 
-    const MOUTH_WIDTH_THRESHOLD = 0.05;
-    const MOUTH_CURVE_THRESHOLD = 0.005;
+    const MOUTH_WIDTH_THRESHOLD = 0.075;
+    const CORNER_LIFT_THRESHOLD = -0.005; // negative: corners above top lip
     const FRAME_WINDOW = 5;
     let smileBuffer = [];
 
@@ -94,35 +94,32 @@
       const left = landmarks[61];
       const right = landmarks[291];
       const top = landmarks[13];
-      const bottom = landmarks[14];
       const cornerLeft = landmarks[78];
       const cornerRight = landmarks[308];
 
       const mouthWidth = Math.hypot(right.x - left.x, right.y - left.y);
-      const mouthHeight = Math.hypot(bottom.x - top.x, bottom.y - top.y);
-      const mouthCurve = ((cornerRight.y + cornerLeft.y) / 2) - top.y;
+      const cornerAvg = (cornerLeft.y + cornerRight.y) / 2;
+      const curveLift = cornerAvg - top.y; // Should be negative when smiling
 
-      const isSmilingNow = mouthWidth > MOUTH_WIDTH_THRESHOLD && mouthCurve > MOUTH_CURVE_THRESHOLD;
+      const isSmilingNow = (
+        mouthWidth > MOUTH_WIDTH_THRESHOLD &&
+        curveLift < CORNER_LIFT_THRESHOLD
+      );
 
-      // Smooth over multiple frames
       smileBuffer.push(isSmilingNow);
       if (smileBuffer.length > FRAME_WINDOW) smileBuffer.shift();
       const smileCount = smileBuffer.filter(Boolean).length;
       const isSmiling = smileCount > FRAME_WINDOW / 2;
 
-      // Update status
       statusText.innerText = isSmiling ? "😊 You're smiling!" : "😐 Not smiling";
 
-      // Debug info
       debugText.innerText = `
 Mouth Width: ${mouthWidth.toFixed(3)}
-Mouth Height: ${mouthHeight.toFixed(3)}
-Mouth Curve: ${mouthCurve.toFixed(3)}
+Corner Avg vs Top: ${curveLift.toFixed(5)} (should be < ${CORNER_LIFT_THRESHOLD})
 Smile Detected: ${isSmilingNow ? 'Yes' : 'No'}
 Buffer: ${smileBuffer.join(', ')}
       `;
 
-      // Draw frame
       canvasElement.width = results.image.width;
       canvasElement.height = results.image.height;
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
