@@ -30,6 +30,13 @@
       margin-top: 10px;
       color: #333;
     }
+
+    #debug {
+      font-size: 1rem;
+      margin-top: 15px;
+      color: #666;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -37,17 +44,19 @@
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
   <div id="status">Loading...</div>
+  <div id="debug"></div> <!-- Debug info -->
 
   <script>
     const videoElement = document.getElementById('video');
     const canvasElement = document.getElementById('canvas');
     const canvasCtx = canvasElement.getContext('2d');
     const statusText = document.getElementById('status');
+    const debugText = document.getElementById('debug');
 
-    // Constants
-    const SMILE_RATIO_THRESHOLD = 1.7;
-    const MOUTH_CURVE_THRESHOLD = 0.015;
-    const FRAME_WINDOW = 5;
+    // Constants (lowered thresholds)
+    const SMILE_RATIO_THRESHOLD = 1.5;  // Lower the ratio threshold
+    const MOUTH_CURVE_THRESHOLD = 0.01;  // Lower the mouth curve threshold for better detection
+    const FRAME_WINDOW = 5;  // Buffer to smooth detection
     let smileBuffer = [];
 
     // Start camera
@@ -104,6 +113,17 @@
       const smileCount = smileBuffer.filter(v => v).length;
       const isSmiling = smileCount > (FRAME_WINDOW / 2);
 
+      // Debug information
+      debugText.innerText = `
+        Smile Ratio: ${smileRatio.toFixed(2)}
+        Mouth Height: ${mouthHeight.toFixed(2)}
+        Mouth Width: ${mouthWidth.toFixed(2)}
+        Mouth Curve: ${mouthCurve.toFixed(3)}
+        Smile Detected: ${isSmilingNow ? 'Yes' : 'No'}
+        Buffer: ${smileBuffer.join(', ')}
+      `;
+
+      // Update status based on smile detection
       statusText.innerText = isSmiling ? "😊 You're smiling!" : "😐 Not smiling";
 
       // Draw the frame to canvas
