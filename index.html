@@ -44,7 +44,7 @@
   </style>
 </head>
 <body>
-  <h2>😊 Smile Detection Demo v6</h2>
+  <h2>😊 Smile Detection Demo v7</h2>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
   <div id="status">Loading...</div>
@@ -61,18 +61,18 @@
     let smileBuffer = [];
 
     const WEIGHTS = {
-      width: 0.6,
-      height: 0.2,
+      width: 0.7,   // More emphasis
+      height: 0.1,  // Less emphasis
       curve: 0.2
     };
 
     const NORMALIZATION = {
-      width: 0.09,     // expected max width when smiling
-      height: 0.04,    // expected max height when smiling
-      curveLift: -0.01 // expected max negative when corners lift
+      width: 0.12,     // Now requires wider mouth for full score
+      height: 0.035,
+      curveLift: -0.01
     };
 
-    const SMILE_SCORE_THRESHOLD = 0.5;
+    const SMILE_SCORE_THRESHOLD = 0.6; // Raised from 0.5 to reduce false positives
 
     async function startCamera() {
       try {
@@ -112,7 +112,7 @@
 
       const mouthWidth = Math.hypot(right.x - left.x, right.y - left.y);
       const mouthHeight = Math.hypot(bottom.x - top.x, bottom.y - top.y);
-      const curveLift = ((cornerLeft.y + cornerRight.y) / 2) - top.y; // negative = smiling
+      const curveLift = ((cornerLeft.y + cornerRight.y) / 2) - top.y;
 
       const widthScore = Math.min(mouthWidth / NORMALIZATION.width, 1.0);
       const heightScore = Math.min(mouthHeight / NORMALIZATION.height, 1.0);
@@ -133,14 +133,11 @@
       statusText.innerText = isSmiling ? "😊 You're smiling!" : "😐 Not smiling";
 
       debugText.innerText = `
-Smile Score: ${smileScore.toFixed(3)} (threshold: ${SMILE_SCORE_THRESHOLD})
-Width Score: ${widthScore.toFixed(3)}
-Height Score: ${heightScore.toFixed(3)}
-Curve Score: ${curveScore.toFixed(3)}
-Raw Width: ${mouthWidth.toFixed(3)}
-Raw Height: ${mouthHeight.toFixed(3)}
-Curve Lift: ${curveLift.toFixed(5)} (should be negative)
-Buffer: ${smileBuffer.join(', ')}
+Smile Score: ${smileScore.toFixed(3)} (needs ≥ ${SMILE_SCORE_THRESHOLD})
+Width Score: ${widthScore.toFixed(3)} (raw: ${mouthWidth.toFixed(3)})
+Height Score: ${heightScore.toFixed(3)} (raw: ${mouthHeight.toFixed(3)})
+Curve Score: ${curveScore.toFixed(3)} (lift: ${curveLift.toFixed(5)})
+Detection Buffer: ${smileBuffer.join(', ')}
       `;
 
       canvasElement.width = results.image.width;
